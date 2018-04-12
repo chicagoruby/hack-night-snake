@@ -1,5 +1,3 @@
-# require 'fcntl'
-# STDIN.fcntl(Fcntl::F_SETFL,Fcntl::O_NONBLOCK)
 require 'io/console'
 
 STDIN.echo = false
@@ -51,16 +49,7 @@ class Grid
 
       puts output
 
-      input = STDIN.read_nonblock(1) rescue nil
-      if input == "\e"
-        input << STDIN.read_nonblock(3) rescue nil
-        input << STDIN.read_nonblock(2) rescue nil
-      end
-      p input
-      if input == 'q'
-        STDIN.echo = true
-        exit!
-      end
+      handle_keystroke
 
       sleep 0.1
 
@@ -89,6 +78,19 @@ class Grid
           end
         end
       end
+    end
+  end
+
+  def handle_keystroke
+    input = STDIN.read_nonblock(1) rescue nil
+    if input == "\e"
+      input << STDIN.read_nonblock(3) rescue nil
+      input << STDIN.read_nonblock(2) rescue nil
+    end
+    p input
+    if input == 'q'
+      STDIN.echo = true
+      exit!
     end
   end
 
