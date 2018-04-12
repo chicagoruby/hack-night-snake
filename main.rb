@@ -20,99 +20,122 @@ class KeyboardReader
 end
 
 class Snake
+  include Enumerable
 
   DIRECTION_UP = :up
   DIRECTION_DOWN = :down
   DIRECTION_LEFT = :left
   DIRECTION_RIGHT = :right
 
-  attr_reader :direction
+  attr_reader :body_parts
 
-  def initialize(direction = (Snake::DIRECTION_UP))
-    @direction = direction
+  def initialize(x, y, length)
+    @dead = false
+    @body_parts = [
+      {type: :head, x: x, y: y, direction: DIRECTION_LEFT}
+    ]
+    (length-1).times do |i|
+      @body_parts << {type: :tail, x: x + i + 1, y: y, direction: DIRECTION_LEFT}
+    end
   end
 
-  def handle_keystroke
-    input = KeyboardReader.read
-    if input
-      case input
-        when "\e[C"
-          @direction = DIRECTION_RIGHT
-        when "\e[A"
-          @direction = DIRECTION_UP
-        when "\e[B"
-          @direction = DIRECTION_DOWN
-        when "\e[D"
-          @direction = DIRECTION_LEFT
+  def each(&block)
+    @body_parts.each do |part|
+      block.call part
+    end
+  end
+
+  def move
+    return false if dead?
+    @body_parts.each do |part|
+      case part[:direction]
+        when Snake::DIRECTION_UP
+          part[:y] -= 1
+        when Snake::DIRECTION_DOWN
+          part[:y] += 1
+        when Snake::DIRECTION_LEFT
+          part[:x] -= 1
+        when Snake::DIRECTION_RIGHT
+          part[:x] += 1
       end
     end
+
+    # detect self-collision
+    die! if @body_parts.rindex { |part| part[:x] == @body_parts.first[:x] and part[:y] == @body_parts.first[:y] } > 0
+
+    (@body_parts.size - 1).times do |idx|
+      if idx < @body_parts.size
+        @body_parts[@body_parts.size - idx - 1][:direction] = @body_parts[@body_parts.size - idx - 2][:direction]
+      end
+    end
+  end
+
+  def change_direction(new_direction)
+    @body_parts.first[:direction] = new_direction
+  end
+
+  def die!
+    @dead = true
+  end
+
+  def dead?
+    @dead
   end
 end
 
 class Grid
 
-  def initialize(dimensions)
-    @matrix = Array.new dimensions do
-      Array.new dimensions
+  def initialize(width, height)
+    @width = width
+    @height = height
+  end
+
+  # @param [Snake] snake
+  def render(snake)
+    rows = []
+    @height.times do |i|
+      if i == 0
+        rows << '—' * (@width + 2)
+      end
+      rows << '|' + ' ' * @width + '|'
+      if i == @height - 1
+        rows << '—' * (@width + 2)
+      end
     end
-  end
 
-  def spawn_snake(x, y)
-    @matrix[y][x] = Snake.new
-  end
-
-  def render(gameover = false)
-    output = ''
-    @matrix.each_with_index do |row, index|
-      output <<
-        if index == 0 or index == @matrix.size - 1
-          '-' * (row.size + 2)
-        elsif gameover
-          ('|' + ' ' * row.size + '|').tap { |str| index == @matrix.size / 2 ? str[str.size / 2 - 4 .. str.size / 2 + 4] = 'GAME OVER' : str }
-        else
-          '|' + row.map { |cell| cell.nil? ? ' ' : '@' }.join + '|'
+    unless snake.dead?
+      snake.each do |part|
+        if part[:y] < 1 or part[:x] < 1 or part[:y] > @height or part[:x] > @width
+          snake.die!
+          break
         end
-      output << "\r\n"
+        rows[part[:y]][part[:x]] = {head: '@', tail: '*'}[part[:type]]
+      end
     end
-    output << 'press "q" to quit'
+
+    if snake.dead?
+      rows[@height / 2][@width / 2 - 4 .. @width / 2 + 4] = 'GAME OVER'
+    end
+
+    output = rows.join "\r\n"
+    output << "\r\npress \"q\" to quit"
     output
   end
 
-  def move
-    @matrix.each_with_index do |row, y|
-      row.each_with_index do |cell, x|
-        if Snake === cell
-
-          # @type [Snake]
-          snake = cell
-
-          @matrix[y][x] = nil
-          case snake.direction
-            when Snake::DIRECTION_UP
-              y -= 1
-            when Snake::DIRECTION_DOWN
-              y += 1
-            when Snake::DIRECTION_LEFT
-              x -= 1
-            when Snake::DIRECTION_RIGHT
-              x += 1
-          end
-          raise GameOver.new if y < 0 or x < 0 or y >= @matrix.size or x >= row.size
-          @matrix[y][x] = snake
-          snake.handle_keystroke
-          return
-        end
-      end
-    end
-  end
 end
 
-
 class Game
+
+  KEYSTROKES = {
+    "\e[C" => Snake::DIRECTION_RIGHT,
+    "\e[A" => Snake::DIRECTION_UP,
+    "\e[B" => Snake::DIRECTION_DOWN,
+    "\e[D" => Snake::DIRECTION_LEFT
+  }
+
   def initialize
-    @grid = Grid.new(30)
-    @grid.spawn_snake(15,15)
-    @gameover = false
+    @grid = Grid.new(30, 30)
+    @snake = Snake.new(13, 15, 3)
   end
 
   def run!
@@ -120,25 +143,15 @@ class Game
 
       puts "\e[H\e[2J"
 
-      if @gameover
-        KeyboardReader.read
-      else
-        begin
-          @grid.move
-        rescue GameOver
-          @gameover = true
-        end
-      end
-      puts @grid.render(@gameover)
-      sleep 0.1
+      input = KeyboardReader.read
+      @snake.change_direction KEYSTROKES[input] if KEYSTROKES.has_key? input
+      @snake.move
+      puts @grid.render(@snake)
+      sleep 0.2
 
     end
 
   end
-end
-
-class GameOver < Exception
-
 end
 
 game = Game.new
