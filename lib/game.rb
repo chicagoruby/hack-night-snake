@@ -2,6 +2,8 @@ require 'io/console'
 require_relative 'level'
 require_relative 'keyboard_reader'
 
+class UserInterrupt < Exception; end
+
 class Game
 
   KEYSTROKES = {
@@ -18,18 +20,20 @@ class Game
   def run!
     STDIN.echo = false
     STDIN.raw!
-    loop do
-      puts "\e[H\e[2J"
-      input = KeyboardReader.read
-      if input == 'q'
-        STDIN.echo = true
-        STDIN.cooked!
-        exit!
+    begin
+      loop do
+        puts "\e[H\e[2J"
+        input = KeyboardReader.read
+        raise UserInterrupt if input == 'q'
+        @level.snake.change_direction KEYSTROKES[input] if KEYSTROKES.has_key? input
+        @level.snake.move
+        puts @level.render
+        sleep 0.2
       end
-      @level.snake.change_direction KEYSTROKES[input] if KEYSTROKES.has_key? input
-      @level.snake.move
-      puts @level.render
-      sleep 0.2
+    rescue Exception => e
+      STDIN.echo = true
+      STDIN.cooked!
+      raise unless UserInterrupt === e
     end
   end
 end

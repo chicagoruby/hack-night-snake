@@ -9,14 +9,17 @@ class Snake
   X_MOVE = {DIRECTION_LEFT => -1, DIRECTION_RIGHT => 1, DIRECTION_UP => 0, DIRECTION_DOWN => 0}
   Y_MOVE = {DIRECTION_LEFT => 0, DIRECTION_RIGHT => 0, DIRECTION_UP => -1, DIRECTION_DOWN => 1}
 
+  HEAD = Struct.new('Head', :x, :y, :direction)
+  TAIL = Struct.new('Tail', :x, :y)
+
   attr_reader :body_parts
 
   def initialize(x, y, direction)
     @dead = false
     @body_parts = [
-      {type: :head, x: x, y: y, direction: direction},
-      {type: :tail, x: x - X_MOVE[direction], y: y - Y_MOVE[direction], direction: direction},
-      {type: :tail, x: x - X_MOVE[direction] * 2, y: y - Y_MOVE[direction] * 2, direction: direction}
+      HEAD.new(x, y, direction),
+      TAIL.new(x - X_MOVE[direction], y - Y_MOVE[direction]),
+      TAIL.new(x - X_MOVE[direction] * 2, y - Y_MOVE[direction] * 2)
     ]
     @grow = 0
   end
@@ -30,31 +33,28 @@ class Snake
   def move
     return false if dead?
 
-    append_tail = nil
     if @grow > 0
       @grow -= 1
-      append_tail = @body_parts.last.clone
+      @body_parts << TAIL.new(@body_parts.last.x, @body_parts.last.y)
     end
 
-    @body_parts.each do |part|
-      part[:y] += Y_MOVE[part[:direction]]
-      part[:x] += X_MOVE[part[:direction]]
-    end
+    (1..@body_parts.size).reverse_each do |idx|
+      idx -= 1
+      part = @body_parts[idx]
 
-    @body_parts << append_tail if append_tail
+      if TAIL === part
+        # detect self-collision
+        die! if part.x == @body_parts.first.x and part.y == @body_parts.first.y
 
-    # detect self-collision
-    die! if @body_parts.rindex { |part| part[:x] == @body_parts.first[:x] and part[:y] == @body_parts.first[:y] } > 0
-
-    (@body_parts.size - 1).times do |idx|
-      if idx < @body_parts.size
-        @body_parts[@body_parts.size - idx - 1][:direction] = @body_parts[@body_parts.size - idx - 2][:direction]
+        part.x, part.y = [@body_parts[idx - 1].x, @body_parts[idx - 1].y]
+      else
+        part.x, part.y = [part.x + X_MOVE[part.direction], part.y + Y_MOVE[part.direction]]
       end
     end
   end
 
   def change_direction(new_direction)
-    @body_parts.first[:direction] = new_direction
+    @body_parts.first.direction = new_direction
   end
 
   def die!

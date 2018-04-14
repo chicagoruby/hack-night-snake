@@ -29,13 +29,13 @@ class Level
       feed_snake!
 
       @snake.each do |part|
-        rows[part[:y]][part[:x]] = {head: '@', tail: '*'}[part[:type]]
+        rows[part.y][part.x] = {Snake::HEAD => '@', Snake::TAIL => '*'}[part.class]
       end
 
       spawn_food!
 
       @food.each do |bite|
-        rows[bite[:y]][bite[:x]] = '.'
+        rows[bite.y][bite.x] = '+'
       end
     end
 
@@ -51,12 +51,12 @@ class Level
 
   def detect_collision!
     head = @snake.first
-    @snake.die! if @rows[head[:y]][head[:x]] != ' '
+    @snake.die! if @rows[head.y][head.x] != ' '
   end
 
   def feed_snake!
     head = @snake.first
-    bite = @food.any_at?(head[:x], head[:y])
+    bite = @food.any_at?(head.x, head.y)
     if bite
       @food.eat! bite[:id]
       @snake.grow 1
